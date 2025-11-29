@@ -10,14 +10,25 @@ builder.Services.AddScoped<WeatherApp.Services.WeatherService>();
 builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
 
+// Cors service
+// learn lamda expressions in C# and using them
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowVueApp", //what's this policy and why it works this way?
+        policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
 var app = builder.Build();
 
+// get more clarity on the order of app.use
+app.UseHttpsRedirection();
+app.UseCors("AllowVueApp");
 // Configure the HTTP request pipeline.
 
 app.UseSwagger();
 app.UseSwaggerUI();
 app.MapOpenApi();
-app.UseHttpsRedirection();
+
 
 app.UseAuthorization();
 
