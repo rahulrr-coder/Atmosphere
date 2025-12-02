@@ -3,7 +3,7 @@ using WeatherApp.Models;    // 2. Link to our "Clean Box"
 
 namespace WeatherApp.Services;
 
-public class WeatherService
+public class WeatherService : IWeatherService
 {
     // The Tools we need
     private readonly HttpClient _httpClient;
@@ -70,5 +70,10 @@ public class WeatherService
     public class WeatherDescription
     {
         public string main { get; set; }
+    }
+
+    public IEnumerable<WeatherModel> GetForecast()
+    {
+        throw new NotImplementedException();
     }
 }

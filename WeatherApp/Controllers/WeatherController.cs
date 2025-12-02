@@ -8,9 +8,9 @@ namespace WeatherApp.Controllers;
 [Route("[controller]")]
 public class WeatherController : ControllerBase
 {
-    private readonly WeatherService _weatherService;
+    private readonly IWeatherService _weatherService;
     
-    public WeatherController(WeatherService weatherService)
+    public WeatherController(IWeatherService weatherService)
     {
         _weatherService = weatherService;
     }
@@ -18,8 +18,14 @@ public class WeatherController : ControllerBase
     [HttpGet("{cityName}")]
     public async Task<IActionResult> Get(string cityName)
     {
-        WeatherModel data = await _weatherService.GetWeatherForCity(cityName);
+        var data = await  _weatherService.GetWeatherForCity(cityName);
+
+        if (data.Weather == "City Not Found")
+        {
+            return BadRequest(data);
+        }
         
         return Ok(data);
     }
 }
+
