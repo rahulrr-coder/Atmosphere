@@ -1,4 +1,6 @@
+using Microsoft.EntityFrameworkCore; 
 using WeatherApp.Services;
+using WeatherApp.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -10,6 +12,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IWeatherService, WeatherApp.Services.WeatherService>();
 builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddDbContext<WeatherDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Cors service
 // learn lamda expressions in C# and using them
