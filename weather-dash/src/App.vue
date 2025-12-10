@@ -100,7 +100,7 @@ const deleteCity = async (id: number) => {
 .search-box { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
 input { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
 button { padding: 8px 15px; cursor: pointer; }
-.card { background: #f0f0f0; padding: 20px; border-radius: 10px; margin: 20px 0; }
+.card { background: #e5e5e5; padding: 20px; border-radius: 10px; margin: 20px 0; }
 .temp { font-size: 2.5rem; font-weight: bold; margin: 10px 0; }
 .save-btn { background-color: #4CAF50; color: white; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; }
 .favorites ul { list-style: none; padding: 0; }
