@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore; 
 using WeatherApp.Services;
 using WeatherApp.Data;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -16,11 +19,27 @@ builder.Services.AddDbContext<WeatherDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Cors service
-// learn lamda expressions in C# and using them
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowVueApp", //what's this policy and why it works this way?
         policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_for_weather_app_maersk_demo_12345";
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
 });
 
 var app = builder.Build();
@@ -40,7 +59,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.MapOpenApi();
 
-
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
