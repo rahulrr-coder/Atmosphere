@@ -18,7 +18,7 @@ public class WeatherController : ControllerBase
     [HttpGet("{cityName}")]
     public async Task<IActionResult> Get(string cityName)
     {
-        var data = await  _weatherService.GetWeatherForCity(cityName);
+        var data = await  _weatherService.GetWeatherAsync(cityName);
 
         if (data.Weather == "City Not Found")
         {

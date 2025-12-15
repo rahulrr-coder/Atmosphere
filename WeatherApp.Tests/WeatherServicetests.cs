@@ -43,7 +43,7 @@ public class WeatherServiceTests
         var service = new WeatherService(httpClient, mockConfig.Object);
 
         // 2. Act
-        var result = await service.GetWeatherForCity("Dubai");
+        var result = await service.GetWeatherAsync("Dubai");
 
         // 3. Assert
         Assert.Equal("Dubai", result.City);
@@ -74,7 +74,7 @@ public class WeatherServiceTests
         var service = new WeatherService(httpClient, mockConfig.Object);
 
         // 2. Act
-        var result = await service.GetWeatherForCity("Unknown");
+        var result = await service.GetWeatherAsync("Unknown");
 
         // 3. Assert
         Assert.Equal("City Not Found", result.Weather);
