@@ -32,10 +32,7 @@ builder.Services.AddQuartz(q=>
     q.AddTrigger(opts => opts
         .ForJob(jobKey)
         .WithIdentity("DailyWeatherJob-trigger")
-        .StartNow() // ⚡ Run immediately when app starts!
-        .WithSimpleSchedule(x => x
-            .WithIntervalInMinutes(1) // Run every 1 minute
-            .RepeatForever())
+       .WithCronSchedule("0 0 8 * * ?")
     );
 });
 

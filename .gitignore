@@ -500,3 +500,5 @@ coverage-report/
 weather-dash/coverage/
 coverage/
 *.lcov
+
+.vscode
