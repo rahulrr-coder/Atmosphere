@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Quartz;
 using WeatherApp.Data;
 using WeatherApp.Services;
+using WeatherApp.Services.AI; 
 using WeatherApp.Services.Background;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,16 @@ builder.Services.AddTransient<IEmailService, EmailService>();
 // Register AI Service with HttpClient
 builder.Services.AddHttpClient<IAIService, AIService>();
 
+// 1. Cerebras (Fastest, High Quota)
+builder.Services.AddTransient<IAIProvider, CerebrasProvider>();
+// 2. Groq (Fast Fallback)
+builder.Services.AddTransient<IAIProvider, GroqProvider>();
+// 3. Gemini (Deep Fallback)
+builder.Services.AddTransient<IAIProvider, GeminiProvider>();
+
+// Register the Manager
+builder.Services.AddTransient<IAIService, AIService>();
+
 // Quartz (Background Jobs)
 builder.Services.AddQuartz(q =>
 {
@@ -40,6 +51,8 @@ builder.Services.AddQuartz(q =>
     );
 });
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+
 
 // CORS: Defines WHO can access your API
 builder.Services.AddCors(options =>
