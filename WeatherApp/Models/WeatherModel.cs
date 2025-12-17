@@ -4,6 +4,7 @@ public class WeatherModel
 {
     // Current Weather
     public string City { get; set; } = string.Empty;
+    public string Country {get; set;} = string.Empty;
     public double CurrentTemp { get; set; }
     public string CurrentCondition { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

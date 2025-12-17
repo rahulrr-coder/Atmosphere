@@ -47,6 +47,7 @@ public class WeatherService : IWeatherService
             var model = new WeatherModel
             {
                 City = currentRes.name,
+                Country = currentRes.sys.country,
                 CurrentTemp = currentRes.main.temp,
                 CurrentCondition = currentRes.weather.FirstOrDefault()?.main ?? "Clear",
                 Description = currentRes.weather.FirstOrDefault()?.description ?? "Clear",
@@ -76,7 +77,7 @@ public class WeatherService : IWeatherService
 }
 
 
-public class OpenWeatherCurrent { public string name { get; set; } = ""; public MainData main { get; set; } = new(); public List<WeatherInfo> weather { get; set; } = new(); public WindData wind { get; set; } = new(); public Coord coord { get; set; } = new(); }
+public class OpenWeatherCurrent { public string name { get; set; } = ""; public MainData main { get; set; } = new(); public List<WeatherInfo> weather { get; set; } = new(); public WindData wind { get; set; } = new(); public Coord coord { get; set; } = new(); public SysData sys { get; set; } = new();}
 public class OpenWeatherForecast { public List<ForecastItem> list { get; set; } = new(); }
 public class ForecastItem { public MainData main { get; set; } = new(); public List<WeatherInfo> weather { get; set; } = new(); }
 public class MainData { public double temp { get; set; } public int humidity { get; set; } public double temp_min { get; set; } public double temp_max { get; set; } }
@@ -86,3 +87,4 @@ public class Coord { public double lat { get; set; } public double lon { get; se
 public class AirPollutionResponse { public List<PollutionData> list { get; set; } = new(); }
 public class PollutionData { public MainAqi main { get; set; } = new(); }
 public class MainAqi { public int aqi { get; set; } }
+public class SysData { public string country { get; set; } = ""; }
