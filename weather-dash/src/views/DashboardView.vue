@@ -287,15 +287,23 @@ onMounted(() => loadFavorites())
             <section class="right-panel">
               <div class="panel-inner">
                 <div class="brief-header">DAILY BRIEFING</div>
-                <div v-if="aiLoading" class="skeleton"><div class="line"></div><div class="line"></div></div>
+                
+                <div v-if="aiLoading" class="skeleton">
+                  <div class="line l1"></div><div class="line l2"></div><div class="line l3"></div>
+                </div>
+                
                 <div v-else>
                   <p class="ai-summary">"{{ aiData?.summary }}"</p>
+                  
                   <div class="advisories">
-                    <div class="advice">
-                      <span class="cat-label">OUTFIT</span><span class="adv-val">{{ aiData?.outfit }}</span>
+                    <div class="advice-block">
+                      <span class="cat-label">OUTFIT</span>
+                      <p class="adv-text">{{ aiData?.outfit }}</p>
                     </div>
-                    <div class="advice">
-                      <span class="cat-label">SAFETY</span><span class="adv-val">{{ aiData?.safety }}</span>
+
+                    <div class="advice-block">
+                      <span class="cat-label">ADVISORY</span>
+                      <p class="adv-text">{{ aiData?.safety }}</p>
                     </div>
                   </div>
                 </div>
