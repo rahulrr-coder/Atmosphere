@@ -8,11 +8,14 @@ public class User
 
     [Required]
     public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
 
-    // We store the HASH, not the password (e.g., "Argon2id...$#")
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
 
-    // A user can have many favorite cities
+    // Email Subscription Settings
+    public bool IsSubscribed { get; set; } = false;
+    public string? SubscriptionCity { get; set; } 
+
     public List<FavoriteCity> FavoriteCities { get; set; } = new();
 }

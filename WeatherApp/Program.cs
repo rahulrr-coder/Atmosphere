@@ -1,30 +1,69 @@
-using Microsoft.EntityFrameworkCore; 
-using WeatherApp.Services;
-using WeatherApp.Data;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore; 
+using Microsoft.IdentityModel.Tokens;
+using Quartz;
+using WeatherApp.Data;
+using WeatherApp.Services;
+using WeatherApp.Services.AI; 
+using WeatherApp.Services.Background;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ==========================================
+// 1. REGISTER SERVICES (Dependency Injection)
+// ==========================================
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<IWeatherService, WeatherApp.Services.WeatherService>();
-builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Database
 builder.Services.AddDbContext<WeatherDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Cors service
+// Core Services
+builder.Services.AddScoped<IWeatherService, WeatherService>();
+builder.Services.AddTransient<IEmailService, EmailService>();
+
+// Register AI Service with HttpClient
+builder.Services.AddHttpClient<IAIService, AIService>();
+
+// 1. Cerebras (Fastest, High Quota)
+builder.Services.AddTransient<IAIProvider, CerebrasProvider>();
+// 2. Groq (Fast Fallback)
+builder.Services.AddTransient<IAIProvider, GroqProvider>();
+// 3. Gemini (Deep Fallback)
+builder.Services.AddTransient<IAIProvider, GeminiProvider>();
+
+// Register the Manager
+builder.Services.AddTransient<IAIService, AIService>();
+
+// Quartz (Background Jobs)
+builder.Services.AddQuartz(q =>
+{
+    var jobKey = new JobKey("DailyWeatherJob");
+    q.AddJob<DailyWeatherJob>(opts => opts.WithIdentity(jobKey));
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity("DailyWeatherJob-trigger")
+        .WithCronSchedule("0 0 8 ? * *") // Runs at 8:00 AM daily
+    );
+});
+builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+
+
+// CORS: Defines WHO can access your API
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowVueApp", //what's this policy and why it works this way?
-        policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    options.AddPolicy("AllowVueApp", policy => 
+        policy.AllowAnyOrigin()  // Allows requests from anywhere (localhost:3000, etc.)
+              .AllowAnyMethod()  // Allows GET, POST, PUT, DELETE
+              .AllowAnyHeader()); // Allows Custom Headers (like Authorization)
 });
 
+// Authentication (JWT)
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_for_weather_app_maersk_demo_12345";
 builder.Services.AddAuthentication(options =>
 {
@@ -37,31 +76,43 @@ builder.Services.AddAuthentication(options =>
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
-        ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateIssuer = false,   // Simplified for Dev
+        ValidateAudience = false  // Simplified for Dev
     };
 });
 
 var app = builder.Build();
 
+// ==========================================
+// 2. CONFIGURE PIPELINE (Middleware Order Matters!)
+// ==========================================
+
+// A. Database Migration on Startup (Optional but handy)
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<WeatherApp.Data.WeatherDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<WeatherDbContext>();
     db.Database.Migrate();
 }
 
-// get more clarity on the order of app.use
+// B. Swagger (Documentation) - Should be early so we can see it
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseHttpsRedirection();
+
+// C. CORS - Must be BEFORE Auth
+// Why? Browsers send a pre-flight check (OPTIONS) before the real request.
+// If CORS is after Auth, the check fails because it has no token.
 app.UseCors("AllowVueApp");
-// Configure the HTTP request pipeline.
 
-app.UseSwagger();
-app.UseSwaggerUI();
-app.MapOpenApi();
-
+// D. Security - Auth (Who are you?) -> Authorization (Are you allowed?)
 app.UseAuthentication();
 app.UseAuthorization();
 
+// E. Map the Endpoints
 app.MapControllers();
 
 app.Run();

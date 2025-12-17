@@ -5,8 +5,8 @@ using WeatherApp.Models;
 
 namespace WeatherApp.Controllers;
 
+[Route("api/[controller]")]
 [ApiController]
-[Route("[controller]")]
 public class FavoritesController : ControllerBase
 {
     private readonly WeatherDbContext _context;
@@ -16,41 +16,45 @@ public class FavoritesController : ControllerBase
         _context = context;
     }
 
-    // GET: /Favorites
-    // Returns the list of all saved cities
-    [HttpGet]
-    public async Task<IActionResult> GetAll()
+    [HttpGet("{username}")]
+    public async Task<IActionResult> GetFavorites(string username)
     {
-        var cities = await _context.Favorites.ToListAsync();
-        return Ok(cities);
+        var user = await _context.Users.Include(u => u.FavoriteCities)
+                                 .FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) return NotFound();
+        return Ok(user.FavoriteCities.Select(f => f.Name)); // Just return names
     }
 
-    // POST: /Favorites
-    // Saves a new city
     [HttpPost]
-    public async Task<IActionResult> Add([FromBody] FavoriteCity city)
+    public async Task<IActionResult> AddFavorite([FromBody] FavRequest req)
     {
-        // Check if it already exists to prevent duplicates
-        var exists = await _context.Favorites.AnyAsync(c => c.Name == city.Name);
-        if (exists) return Conflict("City already saved");
+        var user = await _context.Users.Include(u => u.FavoriteCities)
+                                 .FirstOrDefaultAsync(u => u.Username == req.Username);
+        if (user == null) return NotFound("User not found");
 
-        _context.Favorites.Add(city);
-        await _context.SaveChangesAsync(); // Writes to the DB
-        
-        return Ok(city);
+        if (!user.FavoriteCities.Any(f => f.Name.ToLower() == req.CityName.ToLower()))
+        {
+            user.FavoriteCities.Add(new FavoriteCity { Name = req.CityName });
+            await _context.SaveChangesAsync();
+        }
+        return Ok(user.FavoriteCities.Select(f => f.Name));
     }
 
-    // DELETE: /Favorites/5
-    // Removes a city by ID
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    [HttpDelete("{username}/{cityName}")]
+    public async Task<IActionResult> RemoveFavorite(string username, string cityName)
     {
-        var city = await _context.Favorites.FindAsync(id);
-        if (city == null) return NotFound();
-        
-        _context.Favorites.Remove(city);
-        await _context.SaveChangesAsync();
-        
-        return Ok();
+        var user = await _context.Users.Include(u => u.FavoriteCities)
+                                 .FirstOrDefaultAsync(u => u.Username == username);
+        if (user == null) return NotFound();
+
+        var city = user.FavoriteCities.FirstOrDefault(f => f.Name.ToLower() == cityName.ToLower());
+        if (city != null)
+        {
+            user.FavoriteCities.Remove(city);
+            await _context.SaveChangesAsync();
+        }
+        return Ok(user.FavoriteCities.Select(f => f.Name));
     }
 }
+
+public class FavRequest { public string Username { get; set; } = ""; public string CityName { get; set; } = ""; }

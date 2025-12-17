@@ -1,4 +1,3 @@
-using BCrypt.Net; 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -10,61 +9,79 @@ using WeatherApp.Models;
 
 namespace WeatherApp.Controllers;
 
-[ApiController]
 [Route("api/[controller]")]
+[ApiController]
 public class AuthController : ControllerBase
 {
     private readonly WeatherDbContext _context;
-    private readonly IConfiguration _configuration;
 
-    public AuthController(WeatherDbContext context, IConfiguration configuration)
+    public AuthController(WeatherDbContext context)
     {
         _context = context;
-        _configuration = configuration;
-    }
-
-    public class AuthRequest
-    {
-        public string Username { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] AuthRequest request)
+    public async Task<ActionResult<User>> Register(UserDto request)
     {
-        if (await _context.Users.AnyAsync(u => u.Username == request.Username))
-            return BadRequest("Username already taken.");
+        // Simple register logic (hash password in real app)
+        var user = new User 
+        { 
+            Username = request.Username, 
+            Email = request.Email, 
+            PasswordHash = request.Password,
+            IsSubscribed = request.IsSubscribed,
+            SubscriptionCity = request.City // Set initial city if provided
+        };
 
-        string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
-        var user = new User { Username = request.Username, PasswordHash = passwordHash };
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
-
-        return Ok(new { message = "User registered!" });
+        return Ok(user);
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] AuthRequest request)
+    public async Task<ActionResult<User>> Login(UserDto request)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
-        if (user == null) return BadRequest("User not found.");
-
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return BadRequest("Wrong password.");
-
-        // Create the Token
-        var tokenHandler = new JwtSecurityTokenHandler();
-        // This key comes from Secrets (Local) or Env Vars (Docker)
-        var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
-        
-        var tokenDescriptor = new SecurityTokenDescriptor
+        if (user == null || user.PasswordHash != request.Password)
         {
-            Subject = new ClaimsIdentity(new[] { new Claim("id", user.Id.ToString()) }),
-            Expires = DateTime.UtcNow.AddDays(7),
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
-
-        return Ok(new { token = tokenHandler.WriteToken(tokenHandler.CreateToken(tokenDescriptor)) });
+            return BadRequest("Invalid username or password.");
+        }
+        return Ok(user);
     }
+
+    
+    [HttpPut("update-subscription")]
+    public async Task<IActionResult> UpdateSubscription([FromBody] SubscriptionDto request)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
+        if (user == null) return NotFound("User not found");
+
+        user.IsSubscribed = request.IsSubscribed;
+        
+        
+        if (!string.IsNullOrEmpty(request.City))
+        {
+            user.SubscriptionCity = request.City;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Subscription updated", city = user.SubscriptionCity, status = user.IsSubscribed });
+    }
+}
+
+// DTOs
+public class UserDto 
+{ 
+    public string Username { get; set; } = ""; 
+    public string Email { get; set; } = ""; 
+    public string Password { get; set; } = ""; 
+    public bool IsSubscribed { get; set; }
+    public string City { get; set; } = "";
+}
+
+public class SubscriptionDto
+{
+    public string Username { get; set; } = "";
+    public bool IsSubscribed { get; set; }
+    public string City { get; set; } = "";
 }
