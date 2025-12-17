@@ -1,12 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using WeatherApp.Models; // Needed for WeatherModel
 
 namespace WeatherApp.Services;
 
 public interface IAIService
 {
-    Task<string> GetFashionAdviceAsync(string city, string weatherCondition, double temperature, int aqi);
+    // Updated signature to accept the full WeatherModel for the "Story" logic
+    Task<string> GetFashionAdviceAsync(WeatherModel weather);
 }
 
 public class AIService : IAIService
@@ -19,25 +21,38 @@ public class AIService : IAIService
         _httpClient = httpClient;
         _configuration = configuration;
     }
-    public async Task<string> GetFashionAdviceAsync(string city, string weatherCondition, double temperature, int aqi)
+
+    public async Task<string> GetFashionAdviceAsync(WeatherModel weather)
     {
         var apiKey = _configuration["Gemini:ApiKey"];
-        if (string.IsNullOrEmpty(apiKey)) return "Wear a smile! (API Key missing)";
+        if (string.IsNullOrEmpty(apiKey)) return "{}"; // Return empty JSON if key missing
 
-        // 👇 BETTER PROMPT ENGINEERING
+        // 1. Build a textual summary of the forecast parts (Morning/Afternoon/Evening)
+        // This lets the AI "see the future" to write the story
+        var forecastSummary = string.Join(", ", weather.DayParts.Select(p => $"{p.PartName}: {p.Temp:F0}°C {p.Condition}"));
+
+        // 2. The New "Storyteller" Prompt
         var prompt = $@"
-            Context: The weather in {city} is {temperature}°C with condition '{weatherCondition}'. 
-            Air Quality Index is {aqi} (on a scale of 1 to 5, where 5 is poor).
+            Context: Current weather in {weather.City} is {weather.CurrentTemp:F0}°C ({weather.CurrentCondition}). 
+            Forecast segments: {forecastSummary}.
+            Humidity: {weather.Humidity}%. Wind: {weather.WindSpeed} m/s. AQI: {weather.AQI}.
 
-            Your Role: A witty, cheerful style assistant.
+            Task: Act as a witty weather lifestyle assistant. Return a VALID JSON object.
+            Do NOT use Markdown formatting (no ```json blocks). Just return the raw JSON string.
             
-            Task: Give a short outfit recommendation (max 30 words).
-            
-            Guidelines:
-            - If raining/drizzle: You MUST say 'Don't forget your umbrella!' ☔
-            - If AQI is 4 or 5: Gently suggest a mask (e.g., 'Air's a bit dusty' or 'Mask might be good') but keep it chill.
-            - If clear/sunny: Mention sunglasses.
-            - Tone: Casual, fun, and human-like. No robotic words like 'Strictly' or 'Hazardous'.
+            JSON Structure & Keys:
+            1. 'headline': A catchy, 5-7 word hook summarizing the day (e.g., 'Sunny start with a breezy picnic evening!').
+            2. 'story': A 2-sentence narrative telling the user how the day evolves based on the forecast segments.
+            3. 'outfit': Casual, friendly clothing advice.
+            4. 'vibe': A fun 'Lifestyle Index' (e.g., 'Laundry Day', 'Kite Flying', 'Netflix & Chill', 'Good Hair Day').
+
+            Example JSON:
+            {{
+                ""headline"": ""Perfect sunny morning, but grab an umbrella for 4 PM!"",
+                ""story"": ""Start your day light, but watch out for the evening breeze. Clouds roll in later, making it perfect for a cozy dinner."",
+                ""outfit"": ""T-shirt now, hoodie later."",
+                ""vibe"": ""Picnic Perfect""
+            }}
         ";
 
         var requestBody = new
@@ -50,25 +65,30 @@ public class AIService : IAIService
 
         var json = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+        
+        // Using gemini-1.5-flash for speed and reliability
+        var url = $"[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){apiKey}";
         
         try 
         {
             var response = await _httpClient.PostAsync(url, content);
             response.EnsureSuccessStatusCode();
+            
             var responseString = await response.Content.ReadAsStringAsync();
             var result = JsonSerializer.Deserialize<GeminiResponse>(responseString);
-            return result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text 
-                   ?? "Look good, feel good!";
+            
+            // Return the text directly. The Frontend will parse the JSON.
+            return result?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? "{}";
         }
-        catch 
+        catch (Exception ex)
         {
-            return "Fashion AI is napping. Wear whatever makes you happy!";
+            Console.WriteLine($"AI Error: {ex.Message}");
+            return "{}"; // Return empty JSON on failure
         }
     }
 }
 
-// 👇 Helper Classes to map Gemini's JSON response
+// --- Helper Classes to map Gemini's API Response ---
 public class GeminiResponse
 {
     [JsonPropertyName("candidates")]
