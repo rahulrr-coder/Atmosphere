@@ -9,54 +9,79 @@ public interface IAIService { Task<string> GetFashionAdviceAsync(WeatherModel we
 public class AIService : IAIService
 {
     private readonly IEnumerable<IAIProvider> _providers;
+    private readonly ILogger<AIService> _logger;
 
-    // DI injects ALL registered providers
-    public AIService(IEnumerable<IAIProvider> providers)
+    public AIService(IEnumerable<IAIProvider> providers, ILogger<AIService> logger)
     {
         _providers = providers;
+        _logger = logger;
     }
 
     public async Task<string> GetFashionAdviceAsync(WeatherModel weather)
     {
-       var prompt = $@"
-        You are a high-end fashion and lifestyle editor.
-        Context: {weather.City}, {weather.Country}, {weather.CurrentTemp:F0}°C, {weather.CurrentCondition}.
-        
-        Task: Return a FLAT JSON object with exactly these 3 keys.
-        
-        Rules:
-        1. 'summary': A warm, engaging briefing (max 2 sentences). No boring stats.
-        2. 'outfit': A stylish clothing recommendation.
-        3. 'safety': A practical tip (e.g., 'Carry an umbrella', 'Wear sunscreen', or 'No hazards').
-        
-        IMPORTANT: Do not nest objects. Values must be simple strings.
-        
-        Example Output:
-        {{
-            ""summary"": ""London is calling with a misty morning, but the sun might peek through later."",
-            ""outfit"": ""Trench coat over a merino wool sweater and leather boots."",
-            ""safety"": ""Roads might be slick, watch your step.""
-        }}
-    ";
+        // 👇 UPDATED PROMPT: More relatable, less "high-fashion"
+        var prompt = $@"
+            Role: You are a smart, practical style companion who gives helpful daily advice.
+            Context: {weather.City}, {weather.Country}.
+            Data: Temp {weather.CurrentTemp:F0}°C, {weather.CurrentCondition}. Humidity {weather.Humidity}%. Wind {weather.WindSpeed}m/s. AQI {weather.AQI}.
+            
+            Task: Return a FLAT JSON object (no nesting).
+            
+            Guidelines:
+            - 'summary': A warm, human-like summary of the weather feel (max 2 sentences).
+            - 'outfit': Suggest comfortable, smart-casual, or streetwear options suitable for daily life. Avoid overly luxurious items like 'cashmere' or 'trench coats' unless strictly necessary for extreme cold.
+            - 'safety': Practical tips. 
+               * IF Rain/Drizzle -> Suggest Umbrella/Raincoat.
+               * IF AQI > 150 -> Suggest a Mask.
+               * IF Clear/Sunny -> Suggest Sunscreen/Sunglasses.
+               * ELSE -> 'No specific hazards.'
+            
+            Example Output:
+            {{
+                ""summary"": ""It's a warm and humid day, so stick to breathable fabrics."",
+                ""outfit"": ""Cotton tee with lightweight trousers or shorts."",
+                ""safety"": ""Stay hydrated and seek shade.""
+            }}
+        ";
 
         foreach (var provider in _providers)
         {
-            Console.WriteLine($"🤖 Trying Provider: {provider.Name}...");
-            var result = await provider.GetWeatherInsightAsync(weather, prompt);
-
-            if (!string.IsNullOrWhiteSpace(result))
+            try
             {
-                return CleanJson(result);
+                _logger.LogInformation("🤖 Trying Provider: {Name}...", provider.Name);
+                
+                var result = await provider.GetWeatherInsightAsync(weather, prompt);
+
+                if (string.IsNullOrWhiteSpace(result)) 
+                {
+                    continue;
+                }
+
+                var cleanedJson = ExtractJson(result);
+                JsonDocument.Parse(cleanedJson); // Validate
+                
+                return cleanedJson;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("❌ {Name} Failed: {Message}", provider.Name, ex.Message);
             }
         }
 
-        // Ultimate Fallback
+        // Fallback
         return JsonSerializer.Serialize(new { 
-            summary = $"Enjoy the weather in {weather.City}.", 
-            outfit = "Wear comfortable clothes.", 
-            safety = "Stay safe." 
+            summary = $"Enjoy the atmosphere in {weather.City}.", 
+            outfit = "Wear comfortable clothes suitable for the weather.", 
+            safety = "No specific hazards." 
         });
     }
 
-    private string CleanJson(string raw) => raw.Replace("```json", "").Replace("```", "").Trim();
+    private string ExtractJson(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "{}";
+        int start = text.IndexOf('{');
+        int end = text.LastIndexOf('}');
+        if (start >= 0 && end > start) return text.Substring(start, end - start + 1);
+        return text.Trim(); 
+    }
 }
