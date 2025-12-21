@@ -25,14 +25,14 @@ public class WeatherService : IWeatherService
             var currentTask = _httpClient.GetFromJsonAsync<OpenWeatherCurrent>(currentUrl);
             var forecastTask = _httpClient.GetFromJsonAsync<OpenWeatherForecast>(forecastUrl);
 
-            await Task.WhenAll(currentTask, forecastTask); // Run in parallel for speed
+            await Task.WhenAll(currentTask, forecastTask);
 
             var currentRes = currentTask.Result;
             var forecastRes = forecastTask.Result;
 
             if (currentRes == null || forecastRes == null) return null;
 
-            // 2. Fetch AQI (Optional - fail silently if it breaks)
+            // 2. Fetch AQI
             int aqiLevel = 1;
             try {
                 var aqiUrl = $"https://api.openweathermap.org/data/2.5/air_pollution?lat={currentRes.coord.lat}&lon={currentRes.coord.lon}&appid={_apiKey}";
@@ -41,7 +41,6 @@ public class WeatherService : IWeatherService
             } catch { }
 
             // 3. Map Data
-            // We take the next 8 segments (approx 24h) to find High/Low
             var next24h = forecastRes.list.Take(8).ToList();
 
             var model = new WeatherModel
@@ -55,10 +54,23 @@ public class WeatherService : IWeatherService
                 WindSpeed = currentRes.wind.speed,
                 AQI = aqiLevel,
                 MaxTemp = next24h.Any() ? next24h.Max(x => x.main.temp_max) : currentRes.main.temp_max,
-                MinTemp = next24h.Any() ? next24h.Min(x => x.main.temp_min) : currentRes.main.temp_min
+                MinTemp = next24h.Any() ? next24h.Min(x => x.main.temp_min) : currentRes.main.temp_min,
+                // New Mappings
+                Visibility = currentRes.visibility / 1000.0, // Meters to Km
             };
 
-            // 4. Create the "Story" (Simple logic: take 1st, 3rd, and 5th segment as proxy for Morning/Afternoon/Eve)
+            // Calculate Sun Times
+            var offset = TimeSpan.FromSeconds(currentRes.timezone);
+            var riseTime = DateTimeOffset.FromUnixTimeSeconds(currentRes.sys.sunrise).ToOffset(offset);
+            var setTime = DateTimeOffset.FromUnixTimeSeconds(currentRes.sys.sunset).ToOffset(offset);
+
+            model.Sunrise = riseTime.ToString("h:mm tt");
+            model.Sunset = setTime.ToString("h:mm tt");
+            
+            var diff = setTime - riseTime;
+            model.DayLength = $"{diff.Hours}h {diff.Minutes}m";
+
+            // 4. Create the "Story"
             if (next24h.Count >= 5)
             {
                 model.DayParts.Add(new DayPartForecast { PartName = "Morning", Temp = next24h[0].main.temp, Condition = next24h[0].weather[0].main });
@@ -76,8 +88,17 @@ public class WeatherService : IWeatherService
     }
 }
 
-
-public class OpenWeatherCurrent { public string name { get; set; } = ""; public MainData main { get; set; } = new(); public List<WeatherInfo> weather { get; set; } = new(); public WindData wind { get; set; } = new(); public Coord coord { get; set; } = new(); public SysData sys { get; set; } = new();}
+// Updated Classes
+public class OpenWeatherCurrent { 
+    public string name { get; set; } = ""; 
+    public MainData main { get; set; } = new(); 
+    public List<WeatherInfo> weather { get; set; } = new(); 
+    public WindData wind { get; set; } = new(); 
+    public Coord coord { get; set; } = new(); 
+    public SysData sys { get; set; } = new(); 
+    public int visibility { get; set; } 
+    public int timezone { get; set; }   
+}
 public class OpenWeatherForecast { public List<ForecastItem> list { get; set; } = new(); }
 public class ForecastItem { public MainData main { get; set; } = new(); public List<WeatherInfo> weather { get; set; } = new(); }
 public class MainData { public double temp { get; set; } public int humidity { get; set; } public double temp_min { get; set; } public double temp_max { get; set; } }
@@ -87,4 +108,8 @@ public class Coord { public double lat { get; set; } public double lon { get; se
 public class AirPollutionResponse { public List<PollutionData> list { get; set; } = new(); }
 public class PollutionData { public MainAqi main { get; set; } = new(); }
 public class MainAqi { public int aqi { get; set; } }
-public class SysData { public string country { get; set; } = ""; }
+public class SysData { 
+    public string country { get; set; } = ""; 
+    public long sunrise { get; set; } 
+    public long sunset { get; set; }  
+}

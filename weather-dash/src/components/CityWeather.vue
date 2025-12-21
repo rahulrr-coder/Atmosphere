@@ -54,7 +54,7 @@ const weatherClass = computed(() => {
             
             <div class="condition-row">
               <span class="condition">{{ props.weather.currentCondition }}</span>
-              <span class="high-low">H: {{ Math.round(props.weather.maxTemp) }}° L: {{ Math.round(props.weather.minTemp) }}°</span>
+              <span class="high-low">H: {{ Math.round(props.weather.maxTemp) }}°  L: {{ Math.round(props.weather.minTemp) }}°</span>
             </div>
 
             <div class="metrics-grid">
@@ -64,6 +64,7 @@ const weatherClass = computed(() => {
               
               <div class="m-item"><label>UV INDEX</label><span>{{ props.weather.uvIndex }}</span></div>
               <div class="m-item"><label>VISIBILITY</label><span>{{ props.weather.visibility }} km</span></div>
+              <div class="m-item"><label>SUNRISE</label><span class="small-val">{{ props.weather.sunrise }}</span></div>
               <div class="m-item"><label>DAYLIGHT</label><span class="small-val">{{ props.weather.dayLength }}</span></div>
             </div>
           </div>

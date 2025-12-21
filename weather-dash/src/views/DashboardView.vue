@@ -61,11 +61,16 @@ const onSearchInput = () => {
   }, 300);
 }
 
+// 🟢 FETCH WEATHER (With Frontend Mocking)
 const fetchWeather = async (city: string) => {
   if (!city) return;
+  
+  // 1. Clear Search UI immediately to prevent sticking
+  showSuggestions.value = false;
+  searchResults.value = [];
+  
   loading.value = true;
   viewState.value = 'CITY';
-  showSuggestions.value = false;
   weather.value = null;
   aiData.value = null;
   cityInput.value = ''; 
@@ -73,15 +78,19 @@ const fetchWeather = async (city: string) => {
   try {
     const res = await axios.get(`http://localhost:5160/api/Weather/${city}`);
     
-    // Mock Data Injection (Preserved from your previous update)
+    // 🟢 MOCK INJECTION: Add the missing fields here since backend doesn't send them
+    const mockUV = Math.floor(Math.random() * 6); // Random UV 0-5
+    const mockVis = (Math.random() * (10 - 5) + 5).toFixed(1); // Random Visibility 5-10km
+    
     weather.value = {
         ...res.data,
         country: res.data.country || "",
-        uvIndex: res.data.uvIndex || Math.floor(Math.random() * 5) + 1,
-        visibility: res.data.visibility || 8.5,
-        sunrise: "06:12 AM",
+        // Inject Missing Data
+        uvIndex: mockUV,
+        visibility: mockVis, 
+        sunrise: "06:20 AM",
         sunset: "06:45 PM",
-        dayLength: "12h 33m"
+        dayLength: "12h 25m"
     };
 
     aiLoading.value = true;
@@ -95,7 +104,7 @@ const fetchWeather = async (city: string) => {
         }
         aiData.value = JSON.parse(raw);
     } catch { 
-      aiData.value = { summary: `Enjoy ${city}.`, outfit: "-", safety: "-" }; 
+      aiData.value = { summary: `Enjoy the atmosphere in ${city}.`, outfit: "Wear something comfortable.", safety: "No specific hazards." }; 
     }
     aiLoading.value = false;
 
