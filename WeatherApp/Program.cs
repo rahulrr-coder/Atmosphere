@@ -7,6 +7,7 @@ using WeatherApp.Data;
 using WeatherApp.Services;
 using WeatherApp.Services.AI; 
 using WeatherApp.Services.Background;
+using WeatherApp.Services.Wrappers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +26,7 @@ builder.Services.AddDbContext<WeatherDbContext>(options =>
 // Core Services
 builder.Services.AddScoped<IWeatherService, WeatherService>();
 builder.Services.AddTransient<IEmailService, EmailService>();
+builder.Services.AddTransient<ISmtpClientWrapper, SmtpClientWrapper>();
 
 // Register AI Service with HttpClient
 builder.Services.AddHttpClient<IAIService, AIService>();

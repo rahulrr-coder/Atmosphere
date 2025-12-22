@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Text.Json;
 using WeatherApp.Models;
+using WeatherApp.Services.Wrappers; // Make sure you created the wrapper in this namespace
 
 namespace WeatherApp.Services;
 
@@ -14,29 +15,26 @@ public interface IEmailService
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
+    private readonly ISmtpClientWrapper _smtpClient; // 👈 Dependency Injection
 
-    public EmailService(IConfiguration configuration)
+    // We inject the wrapper here instead of creating it inside
+    public EmailService(IConfiguration configuration, ISmtpClientWrapper smtpClient)
     {
         _configuration = configuration;
+        _smtpClient = smtpClient;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string body)
     {
         var fromEmail = _configuration["Email:Username"];
-        var password = _configuration["Email:Password"];
+        
+        // Note: Password is handled inside the SmtpClientWrapper, so we don't need it here.
 
-        if (string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrEmpty(fromEmail))
         {
             Console.WriteLine("❌ Email credentials missing.");
             return;
         }
-
-        var smtpClient = new SmtpClient("smtp.gmail.com")
-        {
-            Port = 587,
-            Credentials = new NetworkCredential(fromEmail, password),
-            EnableSsl = true,
-        };
 
         var mailMessage = new MailMessage
         {
@@ -49,7 +47,8 @@ public class EmailService : IEmailService
 
         try 
         {
-            await smtpClient.SendMailAsync(mailMessage);
+            // 🟢 This calls the wrapper (Mockable in tests, Real SmtpClient in prod)
+            await _smtpClient.SendMailAsync(mailMessage);
             Console.WriteLine($"✅ Email sent to {toEmail}");
         }
         catch (Exception ex)
