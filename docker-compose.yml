@@ -15,24 +15,39 @@ services:
   # Service 2: The Backend API
   weather-api:
     build:
-      context: ./WeatherApp
+      context: ./server
       dockerfile: Dockerfile
     container_name: weather_api
     ports:
       - "5160:8080" # Maps localhost:5160 (Laptop) -> 8080 (Container)
     environment:
-      # Magic: "weather-db" is the hostname of the database container!
-      ConnectionStrings__DefaultConnection: "Host=weather-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
-      ASPNETCORE_URLS: "http://+:8080"
-      # Pass the API key securely (or use secrets in real prod)
-      OpenWeather__ApiKey: ${OPENWEATHER_API_KEY}
+      # Database connection (Points to the 'db' container, not localhost)
+      - ConnectionStrings__DefaultConnection=Host=weather_db;Port=5432;Database=WeatherDb;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      
+      # Security & APIs (Mapped from .env)
+      - Jwt__Key=${JWT_KEY}
+      - OpenWeather__ApiKey=${OPENWEATHER_API_KEY}
+      
+      # Email
+      - Email__Username=${EMAIL_USERNAME}
+      - Email__Password=${EMAIL_PASSWORD}
+      
+      # AI Keys
+      - AI__GroqKey=${AI_GROQ_KEY}
+      - AI__GeminiKey=${AI_GEMINI_KEY}
+      - AI__CerebrasKey=${AI_CEREBRAS_KEY}
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+
+
     depends_on:
       - weather-db
 
   # Service 3: The Frontend Website
   weather-web:
     build:
-      context: ./weather-dash
+      context: ./client
       dockerfile: Dockerfile
     container_name: weather_web
     ports:

@@ -1,5 +1,5 @@
 # Stage 1: Build the Vue App
-FROM node:20 AS build
+FROM mirror.gcr.io/library/node:20 AS build
 WORKDIR /app
 
 # Copy package files and install dependencies
@@ -11,7 +11,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve with Nginx (Production Web Server)
-FROM nginx:alpine
+FROM mirror.gcr.io/library/nginx:alpine
 WORKDIR /usr/share/nginx/html
 
 # Clear default nginx files

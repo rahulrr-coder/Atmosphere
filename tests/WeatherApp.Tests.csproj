@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WeatherApp\WeatherApp.csproj" />
+    <ProjectReference Include="..\server\WeatherApp.csproj" />
   </ItemGroup>
   <PropertyGroup>
     <Exclude>[WeatherApp]WeatherApp.Migrations.*,[WeatherApp]Program</Exclude>

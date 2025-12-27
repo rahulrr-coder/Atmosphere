@@ -17,7 +17,6 @@ RUN dotnet publish "WeatherApp.csproj" -c Release -o /app/publish /p:UseAppHost=
 # Stage 2: Run the app (The Tent)
 # We use a lighter "Runtime" image for the final container
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
-RUN apt-get update && apt-get install -y libgssapi-krb5-2
 WORKDIR /app
 # Expose the standard HTTP port
 EXPOSE 8080
