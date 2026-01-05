@@ -45,7 +45,7 @@ public class DailyWeatherJobTests
         _mockAi.Setup(a => a.GetFashionAdviceAsync(fakeWeather)).ReturnsAsync("Wear a coat.");
 
         // Act
-        await _job.Execute(null); // Context isn't used, so null is fine
+        await _job.Execute(null!); 
 
         // Assert
         // Verify Email Service was called exactly ONCE with correct data
@@ -61,7 +61,7 @@ public class DailyWeatherJobTests
         await _context.SaveChangesAsync();
 
         // Act
-        await _job.Execute(null);
+        await _job.Execute(null!);
 
         // Assert
         // Verify Email Service was NEVER called
@@ -80,7 +80,7 @@ public class DailyWeatherJobTests
         _mockWeather.Setup(w => w.GetWeatherAsync("UnknownCity")).ReturnsAsync((WeatherModel?)null);
 
         // Act
-        await _job.Execute(null);
+        await _job.Execute(null!);
 
         // Assert
         _mockEmail.Verify(e => e.SendWeatherEmailAsync(It.IsAny<string>(), It.IsAny<WeatherModel>(), It.IsAny<string>()), Times.Never);
