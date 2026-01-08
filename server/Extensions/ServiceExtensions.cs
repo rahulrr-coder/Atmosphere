@@ -39,9 +39,9 @@ public static class ServiceExtensions
         // Register all AI providers (order matters - first to last fallback)
         services.AddTransient<IAIProvider, CerebrasProvider>();
         services.AddTransient<IAIProvider, GroqProvider>();
-        services.AddTransient<IAIProvider, GeminiProvider>();
-        services.AddTransient<IAIProvider, MistralProvider>();
         services.AddTransient<IAIProvider, DeepSeekProvider>();
+        services.AddTransient<IAIProvider, MistralProvider>();
+        services.AddTransient<IAIProvider, GeminiProvider>();
         
         return services;
     }
