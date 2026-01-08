@@ -33,8 +33,12 @@ public static class ServiceExtensions
 
     public static IServiceCollection AddAIProviders(this IServiceCollection services)
     {
-        // Register AI Service with HttpClient
-        services.AddHttpClient<IAIService, AIService>();
+        // Register HttpClient for AI providers that need it
+        services.AddHttpClient<CerebrasProvider>();
+        services.AddHttpClient<GroqProvider>();
+        services.AddHttpClient<GeminiProvider>();
+        services.AddHttpClient<MistralProvider>();
+        services.AddHttpClient<DeepSeekProvider>();
 
         // Register all AI providers (order matters - first to last fallback)
         services.AddTransient<IAIProvider, CerebrasProvider>();
@@ -42,6 +46,9 @@ public static class ServiceExtensions
         services.AddTransient<IAIProvider, DeepSeekProvider>();
         services.AddTransient<IAIProvider, MistralProvider>();
         services.AddTransient<IAIProvider, GeminiProvider>();
+
+        // Register the AI Service Manager (uses the providers above)
+        services.AddTransient<IAIService, AIService>();
         
         return services;
     }
