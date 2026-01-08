@@ -1,13 +1,6 @@
-using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore; 
-using Microsoft.IdentityModel.Tokens;
-using Quartz;
+using Microsoft.EntityFrameworkCore;
 using WeatherApp.Data;
-using WeatherApp.Services;
-using WeatherApp.Services.AI; 
-using WeatherApp.Services.Background;
-using WeatherApp.Services.Wrappers;
+using WeatherApp.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,73 +12,13 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Database
-builder.Services.AddDbContext<WeatherDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Core Services
-builder.Services.AddScoped<IWeatherService, WeatherService>();
-builder.Services.AddTransient<IEmailService, EmailService>();
-builder.Services.AddTransient<ISmtpClientWrapper, SmtpClientWrapper>();
-
-// Register AI Service with HttpClient
-builder.Services.AddHttpClient<IAIService, AIService>();
-
-// 1. Cerebras (Fastest, High Quota)
-builder.Services.AddTransient<IAIProvider, CerebrasProvider>();
-// 2. Groq (Fast Fallback)
-builder.Services.AddTransient<IAIProvider, GroqProvider>();
-// 3. Gemini (Deep Fallback)
-builder.Services.AddTransient<IAIProvider, GeminiProvider>();
-
-// Register the Manager
-builder.Services.AddTransient<IAIService, AIService>();
-
-// Quartz (Background Jobs)
-builder.Services.AddQuartz(q =>
-{
-    var jobKey = new JobKey("DailyWeatherJob");
-    q.AddJob<DailyWeatherJob>(opts => opts.WithIdentity(jobKey));
-    q.AddTrigger(opts => opts
-        .ForJob(jobKey)
-        .WithIdentity("DailyWeatherJob-trigger")
-        // Runs at 8:00 AM daily
-        .WithCronSchedule("0 0 8 ? * *") 
-        // Testing
-       //.WithCronSchedule("0/30 * * ? * *") 
-
-    );
-});
-builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
-
-
-
-// CORS: Defines WHO can access your API
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowVueApp", policy => 
-        policy.AllowAnyOrigin()  // Allows requests from anywhere (localhost:3000, etc.)
-              .AllowAnyMethod()  // Allows GET, POST, PUT, DELETE
-              .AllowAnyHeader()); // Allows Custom Headers (like Authorization)
-});
-
-// Authentication (JWT)
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "super_secret_key_for_weather_app_maersk_demo_12345";
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
-        ValidateIssuer = false,   // Simplified for Dev
-        ValidateAudience = false  // Simplified for Dev
-    };
-});
+// Custom service registrations (organized in ServiceExtensions)
+builder.Services.AddDatabaseServices(builder.Configuration);
+builder.Services.AddCoreServices();
+builder.Services.AddAIProviders();
+builder.Services.AddBackgroundJobs();
+builder.Services.AddCorsPolicy();
+builder.Services.AddJwtAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
