@@ -10,10 +10,14 @@ namespace WeatherApp.Tests.Services;
 public class AIServiceTests
 {
     private readonly Mock<ILogger<AIService>> _mockLogger;
+    private readonly Mock<IPromptService> _mockPromptService;
 
     public AIServiceTests()
     {
         _mockLogger = new Mock<ILogger<AIService>>();
+        _mockPromptService = new Mock<IPromptService>();
+        _mockPromptService.Setup(p => p.BuildWeatherPromptAsync(It.IsAny<WeatherModel>()))
+            .ReturnsAsync("Test weather prompt");
     }
 
     [Fact]
@@ -35,7 +39,7 @@ public class AIServiceTests
                      .ReturnsAsync("{\"summary\": \"Success!\"}");
 
         var providers = new List<IAIProvider> { mockProvider1.Object, mockProvider2.Object };
-        var service = new AIService(providers, _mockLogger.Object);
+        var service = new AIService(providers, _mockLogger.Object, _mockPromptService.Object);
 
         // Act
         var result = await service.GetFashionAdviceAsync(weather);
@@ -56,7 +60,7 @@ public class AIServiceTests
                      .ThrowsAsync(new Exception("Fail"));
 
         var providers = new List<IAIProvider> { mockProvider1.Object };
-        var service = new AIService(providers, _mockLogger.Object);
+        var service = new AIService(providers, _mockLogger.Object, _mockPromptService.Object);
 
         // Act
         var result = await service.GetFashionAdviceAsync(weather);
