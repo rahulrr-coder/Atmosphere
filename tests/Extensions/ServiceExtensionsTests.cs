@@ -197,7 +197,7 @@ public class ServiceExtensionsTests
     }
 
     [Fact]
-    public void AddJwtAuthentication_ShouldSetDefaultAuthenticationScheme()
+    public async Task AddJwtAuthentication_ShouldSetDefaultAuthenticationScheme()
     {
         // Arrange
         _mockConfig.Setup(c => c["Jwt:Key"]).Returns("test_key");
@@ -210,7 +210,7 @@ public class ServiceExtensionsTests
         var schemeProvider = provider.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>();
         Assert.NotNull(schemeProvider);
         
-        var defaultScheme = schemeProvider!.GetDefaultAuthenticateSchemeAsync().Result;
+        var defaultScheme = await schemeProvider!.GetDefaultAuthenticateSchemeAsync();
         Assert.NotNull(defaultScheme);
         Assert.Equal(JwtBearerDefaults.AuthenticationScheme, defaultScheme!.Name);
     }

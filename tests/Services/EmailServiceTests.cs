@@ -3,6 +3,7 @@ using Xunit;
 using WeatherApp.Services;
 using WeatherApp.Services.Wrappers;
 using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Hosting;
 using WeatherApp.Models;
 using System.Net.Mail;
 
@@ -12,6 +13,7 @@ public class EmailServiceTests
 {
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<ISmtpClientWrapper> _mockSmtp; // 👈 Mock the wrapper
+    private readonly Mock<IWebHostEnvironment> _mockEnv;
     private readonly EmailService _service;
 
     public EmailServiceTests()
@@ -19,12 +21,17 @@ public class EmailServiceTests
         // 1. Mock Config
         _mockConfig = new Mock<IConfiguration>();
         _mockConfig.Setup(c => c["Email:Username"]).Returns("test@atmosphere.com");
+        _mockConfig.Setup(c => c["App:DashboardUrl"]).Returns("http://localhost:5173");
 
         // 2. Mock SMTP Wrapper
         _mockSmtp = new Mock<ISmtpClientWrapper>();
 
-        // 3. Inject Mock into Service
-        _service = new EmailService(_mockConfig.Object, _mockSmtp.Object);
+        // 3. Mock WebHostEnvironment
+        _mockEnv = new Mock<IWebHostEnvironment>();
+        _mockEnv.Setup(e => e.ContentRootPath).Returns(Path.GetTempPath());
+
+        // 4. Inject Mocks into Service
+        _service = new EmailService(_mockConfig.Object, _mockSmtp.Object, _mockEnv.Object);
     }
 
     [Fact]
