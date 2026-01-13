@@ -57,7 +57,7 @@ public class AIServiceTests
     public async Task GetFashionAdviceAsync_ShouldReturnFallback_WhenAllFail()
     {
         // Arrange
-        var weather = new WeatherModel { City = "Mars", CurrentCondition = "Unknown", CurrentTemp = -50 };
+        var weather = new WeatherModel { City = "Paris", CurrentCondition = "Unknown", CurrentTemp = -50 };
         var mockProvider1 = new Mock<IAIProvider>();
         mockProvider1.Setup(p => p.GetWeatherInsightAsync(It.IsAny<WeatherModel>(), It.IsAny<string>()))
                      .ThrowsAsync(new Exception("Fail"));
