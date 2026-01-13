@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WeatherApp.Data;
 using WeatherApp.Extensions;
+using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,7 @@ builder.Services.AddAIProviders();
 builder.Services.AddBackgroundJobs();
 builder.Services.AddCorsPolicy();
 builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -43,16 +45,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// C. CORS - Must be BEFORE Auth
-// Why? Browsers send a pre-flight check (OPTIONS) before the real request.
-// If CORS is after Auth, the check fails because it has no token.
+// C. RATE LIMITING (BEFORE CORS & AUTH!)
+app.UseIpRateLimiting();
+
+// D. CORS - Must be BEFORE Auth
 app.UseCors("AllowVueApp");
 
-// D. Security - Auth (Who are you?) -> Authorization (Are you allowed?)
+// E. Security 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// E. Map the Endpoints
+// F. Map the Endpoints
 app.MapControllers();
 
 app.Run();
+
+// Make Program class accessible for integration tests
+public partial class Program { }
