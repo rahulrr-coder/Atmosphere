@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Json;
 using WeatherApp.Models;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace WeatherApp.Services;
 
@@ -7,15 +8,56 @@ public class WeatherService : IWeatherService
 {
     private readonly HttpClient _httpClient;
     private readonly string _apiKey;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<WeatherService> _logger;
 
-    public WeatherService(HttpClient httpClient, IConfiguration configuration)
+    // Track API call count for monitoring
+    private static int _apiCallsToday = 0;
+    private static DateTime _lastResetDate = DateTime.UtcNow.Date;
+    private const int MAX_DAILY_CALLS = 900; // Leave buffer from 1000 OpenWeather limit
+
+    public WeatherService(
+        HttpClient httpClient, 
+        IConfiguration configuration,
+        IMemoryCache cache,
+        ILogger<WeatherService> logger)
     {
         _httpClient = httpClient;
         _apiKey = configuration["OpenWeather:ApiKey"] ?? throw new Exception("API Key Missing");
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<WeatherModel?> GetWeatherAsync(string city)
     {
+        // Reset daily counter at midnight
+        if (DateTime.UtcNow.Date > _lastResetDate)
+        {
+            _apiCallsToday = 0;
+            _lastResetDate = DateTime.UtcNow.Date;
+            _logger.LogInformation("🔄 OpenWeather API call counter reset for new day");
+        }
+
+        // Create cache key (case-insensitive)
+        var cacheKey = $"weather_{city.ToLower()}";
+
+        // Try to get from cache first
+        if (_cache.TryGetValue(cacheKey, out WeatherModel? cachedWeather))
+        {
+            _logger.LogInformation("✅ Cache HIT for {City}", city);
+            return cachedWeather;
+        }
+
+        _logger.LogInformation("❌ Cache MISS for {City} - Fetching from API", city);
+
+        // Check daily API limit before making calls
+        if (_apiCallsToday >= MAX_DAILY_CALLS)
+        {
+            _logger.LogWarning("⚠️ OpenWeather API daily limit reached ({Count}/{Max})", 
+                _apiCallsToday, MAX_DAILY_CALLS);
+            throw new Exception("Daily API quota exceeded. Please try again tomorrow.");
+        }
+
         try 
         {
             // 1. Fetch Current + Forecast
@@ -27,6 +69,11 @@ public class WeatherService : IWeatherService
 
             await Task.WhenAll(currentTask, forecastTask);
 
+            // Increment API call counter (2 calls made: current + forecast)
+            _apiCallsToday += 2;
+            _logger.LogInformation("📊 OpenWeather API calls today: {Count}/{Max}", 
+                _apiCallsToday, MAX_DAILY_CALLS);
+
             var currentRes = currentTask.Result;
             var forecastRes = forecastTask.Result;
 
@@ -37,6 +84,7 @@ public class WeatherService : IWeatherService
             try {
                 var aqiUrl = $"https://api.openweathermap.org/data/2.5/air_pollution?lat={currentRes.coord.lat}&lon={currentRes.coord.lon}&appid={_apiKey}";
                 var aqiRes = await _httpClient.GetFromJsonAsync<AirPollutionResponse>(aqiUrl);
+                _apiCallsToday++; // Increment for AQI call
                 aqiLevel = aqiRes?.list?.FirstOrDefault()?.main?.aqi ?? 1;
             } catch { }
 
@@ -78,11 +126,24 @@ public class WeatherService : IWeatherService
                 model.DayParts.Add(new DayPartForecast { PartName = "Evening", Temp = next24h[4].main.temp, Condition = next24h[4].weather[0].main });
             }
 
+            // Store in cache with 5 minute absolute expiration
+            var cacheOptions = new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(5)) // Expire after 5 min
+                .SetSize(1) // For size limit tracking
+                .SetPriority(CacheItemPriority.Normal)
+                .RegisterPostEvictionCallback((key, value, reason, state) =>
+                {
+                    _logger.LogDebug("Cache evicted: {Key}, Reason: {Reason}", key, reason);
+                });
+
+            _cache.Set(cacheKey, model, cacheOptions);
+            _logger.LogInformation("💾 Cached weather data for {City} (5 min expiration)", city);
+
             return model;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            _logger.LogError("❌ Error fetching weather for {City}: {Message}", city, ex.Message);
             return null;
         }
     }

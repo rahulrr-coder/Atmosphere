@@ -4,6 +4,8 @@ using System.Net;
 using WeatherApp.Services;
 using WeatherApp.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace WeatherApp.Tests.Services;
@@ -12,6 +14,8 @@ public class WeatherServiceTests
 {
     private readonly Mock<HttpMessageHandler> _mockHttpHandler;
     private readonly Mock<IConfiguration> _mockConfig;
+    private readonly IMemoryCache _cache;
+    private readonly Mock<ILogger<WeatherService>> _mockLogger;
     private readonly WeatherService _service;
 
     public WeatherServiceTests()
@@ -27,8 +31,14 @@ public class WeatherServiceTests
             BaseAddress = new Uri("https://api.openweathermap.org") 
         };
 
-        // 3. Create Service with Mocks
-        _service = new WeatherService(httpClient, _mockConfig.Object);
+        // 3. Real MemoryCache for testing
+        _cache = new MemoryCache(new MemoryCacheOptions());
+
+        // 4. Mock Logger
+        _mockLogger = new Mock<ILogger<WeatherService>>();
+
+        // 5. Create Service with Mocks
+        _service = new WeatherService(httpClient, _mockConfig.Object, _cache, _mockLogger.Object);
     }
 
     [Fact]
@@ -158,5 +168,148 @@ public class WeatherServiceTests
 
         // Assert
         Assert.Null(result); 
+    }
+
+    [Fact]
+    public async Task GetWeatherAsync_ShouldReturnCachedData_OnSecondCall()
+    {
+        // ARRANGE: Setup successful response
+        var fakeCurrentJson = @"{
+            ""name"": ""London"",
+            ""sys"": { ""country"": ""GB"", ""sunrise"": 1672531200, ""sunset"": 1672574400 },
+            ""main"": { ""temp"": 15.5, ""humidity"": 70, ""temp_min"": 14, ""temp_max"": 17 },
+            ""wind"": { ""speed"": 3.5 },
+            ""weather"": [{ ""main"": ""Cloudy"", ""description"": ""overcast clouds"" }],
+            ""coord"": { ""lat"": 51.5, ""lon"": -0.1 },
+            ""visibility"": 8000,
+            ""timezone"": 0
+        }";
+
+        var fakeForecastJson = @"{
+            ""list"": [
+                { ""main"": { ""temp"": 15, ""temp_min"": 14, ""temp_max"": 16 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 16, ""temp_min"": 15, ""temp_max"": 17 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 17, ""temp_min"": 16, ""temp_max"": 18 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 16, ""temp_min"": 15, ""temp_max"": 17 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 14, ""temp_min"": 13, ""temp_max"": 15 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 13, ""temp_min"": 12, ""temp_max"": 14 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 12, ""temp_min"": 11, ""temp_max"": 13 }, ""weather"": [{ ""main"": ""Clouds"" }] },
+                { ""main"": { ""temp"": 11, ""temp_min"": 10, ""temp_max"": 12 }, ""weather"": [{ ""main"": ""Clouds"" }] }
+            ]
+        }";
+
+        var fakeAqiJson = @"{ ""list"": [{ ""main"": { ""aqi"": 2 } }] }";
+
+        int apiCallCount = 0;
+        _mockHttpHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken token) => 
+            {
+                apiCallCount++;
+                var uri = request.RequestUri!.ToString();
+                string responseJson = "{}";
+
+                if (uri.Contains("/weather?")) responseJson = fakeCurrentJson;
+                else if (uri.Contains("/forecast?")) responseJson = fakeForecastJson;
+                else if (uri.Contains("/air_pollution?")) responseJson = fakeAqiJson;
+
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent(responseJson)
+                };
+            });
+
+        // ACT: First call (should hit API)
+        var result1 = await _service.GetWeatherAsync("London");
+
+        // Second call (should return from cache)
+        var result2 = await _service.GetWeatherAsync("London");
+
+        // ASSERT
+        Assert.NotNull(result1);
+        Assert.NotNull(result2);
+        Assert.Equal("London", result1.City);
+        Assert.Equal("London", result2.City);
+        
+        // Should have made 3 API calls only (current + forecast + aqi) for first request
+        // Second request should not make any API calls
+        Assert.Equal(3, apiCallCount);
+        
+        // Both results should be identical (cached)
+        Assert.Equal(result1.CurrentTemp, result2.CurrentTemp);
+        Assert.Equal(result1.Humidity, result2.Humidity);
+    }
+
+    [Fact]
+    public async Task GetWeatherAsync_ShouldUseCaseInsensitiveCacheKey()
+    {
+        // ARRANGE
+        var fakeCurrentJson = @"{
+            ""name"": ""Paris"",
+            ""sys"": { ""country"": ""FR"", ""sunrise"": 1672531200, ""sunset"": 1672574400 },
+            ""main"": { ""temp"": 20, ""humidity"": 60, ""temp_min"": 18, ""temp_max"": 22 },
+            ""wind"": { ""speed"": 2.5 },
+            ""weather"": [{ ""main"": ""Clear"", ""description"": ""clear sky"" }],
+            ""coord"": { ""lat"": 48.8, ""lon"": 2.3 },
+            ""visibility"": 10000,
+            ""timezone"": 3600
+        }";
+
+        var fakeForecastJson = @"{
+            ""list"": [
+                { ""main"": { ""temp"": 20, ""temp_min"": 18, ""temp_max"": 22 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 21, ""temp_min"": 19, ""temp_max"": 23 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 22, ""temp_min"": 20, ""temp_max"": 24 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 21, ""temp_min"": 19, ""temp_max"": 23 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 19, ""temp_min"": 17, ""temp_max"": 21 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 18, ""temp_min"": 16, ""temp_max"": 20 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 17, ""temp_min"": 15, ""temp_max"": 19 }, ""weather"": [{ ""main"": ""Clear"" }] },
+                { ""main"": { ""temp"": 16, ""temp_min"": 14, ""temp_max"": 18 }, ""weather"": [{ ""main"": ""Clear"" }] }
+            ]
+        }";
+
+        var fakeAqiJson = @"{ ""list"": [{ ""main"": { ""aqi"": 1 } }] }";
+
+        int apiCallCount = 0;
+        _mockHttpHandler.Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>()
+            )
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken token) => 
+            {
+                apiCallCount++;
+                var uri = request.RequestUri!.ToString();
+                string responseJson = "{}";
+
+                if (uri.Contains("/weather?")) responseJson = fakeCurrentJson;
+                else if (uri.Contains("/forecast?")) responseJson = fakeForecastJson;
+                else if (uri.Contains("/air_pollution?")) responseJson = fakeAqiJson;
+
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent(responseJson)
+                };
+            });
+
+        // ACT: Call with different casing
+        var result1 = await _service.GetWeatherAsync("Paris");
+        var result2 = await _service.GetWeatherAsync("PARIS");
+        var result3 = await _service.GetWeatherAsync("paris");
+
+        // ASSERT: Should only make API calls once (cache should handle case-insensitive)
+        Assert.NotNull(result1);
+        Assert.NotNull(result2);
+        Assert.NotNull(result3);
+        Assert.Equal(3, apiCallCount); // Only first call should hit API
+        Assert.Equal(result1.CurrentTemp, result2.CurrentTemp);
+        Assert.Equal(result1.CurrentTemp, result3.CurrentTemp);
     }
 }
