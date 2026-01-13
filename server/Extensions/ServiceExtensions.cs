@@ -31,6 +31,18 @@ public static class ServiceExtensions
         return services;
     }
 
+    public static IServiceCollection AddCachingServices(this IServiceCollection services)
+    {
+        // Add in-memory caching
+        services.AddMemoryCache(options =>
+        {
+            options.SizeLimit = 1024; // Max 1024 cache entries
+            options.CompactionPercentage = 0.25; // Remove 25% when limit hit
+        });
+        
+        return services;
+    }
+
     public static IServiceCollection AddAIProviders(this IServiceCollection services)
     {
         // Register HttpClient for AI providers that need it

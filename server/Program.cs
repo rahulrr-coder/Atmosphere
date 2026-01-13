@@ -14,6 +14,7 @@ builder.Services.AddSwaggerGen();
 
 // Custom service registrations (organized in ServiceExtensions)
 builder.Services.AddDatabaseServices(builder.Configuration);
+builder.Services.AddCachingServices(); 
 builder.Services.AddCoreServices();
 builder.Services.AddAIProviders();
 builder.Services.AddBackgroundJobs();
