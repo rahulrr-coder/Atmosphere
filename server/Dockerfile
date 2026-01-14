@@ -1,7 +1,7 @@
 # Stage 1: Build the code (The Factory)
 # We use the full SDK image to compile the code
-# Since you are on .NET 10, we use the 10.0 SDK
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Since you are on .NET 8, we use the 8.0 SDK
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copy the project file first (caching layer)
@@ -16,7 +16,7 @@ RUN dotnet publish "WeatherApp.csproj" -c Release -o /app/publish /p:UseAppHost=
 
 # Stage 2: Run the app (The Tent)
 # We use a lighter "Runtime" image for the final container
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 # Expose the standard HTTP port
 EXPOSE 8080
